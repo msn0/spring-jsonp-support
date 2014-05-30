@@ -1,63 +1,50 @@
 package com.intera.util.web.servlet.filter;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.filter.GenericFilterBean;
+
+import javax.servlet.*;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Map;
 
-import javax.servlet.Filter;
-import javax.servlet.FilterChain;
-import javax.servlet.FilterConfig;
-import javax.servlet.ServletException;
-import javax.servlet.ServletRequest;
-import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-public class JsonpCallbackFilter implements Filter {
+public class JsonpCallbackFilter extends GenericFilterBean {
 
     private static Logger log = LoggerFactory.getLogger(JsonpCallbackFilter.class);
-
-    public void init(FilterConfig fConfig) throws ServletException {}
+    private static final String CONTENT_TYPE = "text/javascript;charset=UTF-8";
+    private static final String CALLBACK = "callback";
 
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
-        HttpServletRequest httpRequest = (HttpServletRequest) request;
-        HttpServletResponse httpResponse = (HttpServletResponse) response;
+        final HttpServletRequest httpRequest = (HttpServletRequest) request;
+        final HttpServletResponse httpResponse = (HttpServletResponse) response;
+        final Map<String, String[]> params = httpRequest.getParameterMap();
 
-        @SuppressWarnings("unchecked")
-        Map<String, String[]> parms = httpRequest.getParameterMap();
-
-        if(parms.containsKey("callback")) {
-            if(log.isDebugEnabled())
-                log.debug("Wrapping response with JSONP callback '" + parms.get("callback")[0] + "'");
-
-            OutputStream out = httpResponse.getOutputStream();
+        if (params.containsKey(CALLBACK)) {
+            final String callbackName = params.get(CALLBACK)[0];
+            log.debug(String.format("Wrapping response with JSONP callback %s", callbackName));
 
             GenericResponseWrapper wrapper = new GenericResponseWrapper(httpResponse);
-
             chain.doFilter(request, wrapper);
 
-            //handles the content-size truncation
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream( );
-            outputStream.write( new String(parms.get("callback")[0] + "(").getBytes() );
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            outputStream.write(String.format("%s(", callbackName).getBytes());
             outputStream.write(wrapper.getData());
-            outputStream.write(new String(");").getBytes());
-            byte jsonpResponse[] = outputStream.toByteArray( );
+            outputStream.write(String.format(");").getBytes());
 
-            wrapper.setContentType("text/javascript;charset=UTF-8");
+            byte jsonpResponse[] = outputStream.toByteArray();
+            wrapper.setContentType(CONTENT_TYPE);
             wrapper.setContentLength(jsonpResponse.length);
 
+            OutputStream out = httpResponse.getOutputStream();
             out.write(jsonpResponse);
-
             out.close();
-        
+
         } else {
             chain.doFilter(request, response);
         }
     }
-
-    public void destroy() {}
 }

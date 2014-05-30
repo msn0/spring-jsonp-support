@@ -1,10 +1,9 @@
 package com.intera.util.web.servlet.filter;
 
+import javax.servlet.ServletOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-
-import javax.servlet.ServletOutputStream;
 
 public class FilterServletOutputStream extends ServletOutputStream {
 
